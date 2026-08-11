@@ -10,8 +10,8 @@ export const STATUS_LABELS: Record<Status, string> = {
   complete: "Complete",
 };
 
-/** A task as it is stored. */
-export type Task = {
+/** A task exactly as it is stored. */
+export type TaskRow = {
   id: number;
   title: string;
   description: string;
@@ -23,6 +23,12 @@ export type Task = {
   updated_at: string;
 };
 
+/** A stored task plus the fields worked out at read time. */
+export type Task = TaskRow & {
+  archived: boolean;
+  overdue: boolean;
+};
+
 export type TaskInput = {
   title: string;
   description?: string;
@@ -31,10 +37,42 @@ export type TaskInput = {
   status?: Status;
 };
 
+/** The calendar date where the user is, as YYYY-MM-DD. */
+function localDate(now: Date): string {
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Overdue is worked out here rather than stored, so it can never go stale and
+ * so it stays out of the three statuses. A task is overdue when its due date
+ * has already passed and it is still outstanding; finished and archived tasks
+ * are not chased.
+ *
+ * Due dates are whole days, so this compares calendar dates as strings. Reading
+ * one into a Date treats "2026-08-11" as UTC midnight, which marks a task due
+ * today as overdue from 02:00 local time onwards.
+ */
+export function isOverdue(row: TaskRow, now = new Date()): boolean {
+  if (!row.due_date) return false;
+  if (row.status === "complete") return false;
+  if (row.archived_at) return false;
+
+  return row.due_date < localDate(now);
+}
+
 // node:sqlite hands back null-prototype records rather than typed rows, so the
 // shape is asserted in one place instead of at every call site.
-function toTask(row: unknown): Task {
-  return { ...(row as Task) };
+function toTask(row: unknown, now = new Date()): Task {
+  const stored = row as TaskRow;
+
+  return {
+    ...stored,
+    archived: stored.archived_at !== null,
+    overdue: isOverdue(stored, now),
+  };
 }
 
 export type SortKey = "due_date" | "topic" | "status";
@@ -67,14 +105,18 @@ export function listTasks(
   const sort = opts.sort ?? "due_date";
   const archived = opts.archived ?? false;
 
-  return getDb()
+  const rows = getDb()
     .prepare(
       `SELECT * FROM tasks
         WHERE archived_at IS ${archived ? "NOT NULL" : "NULL"}
         ORDER BY ${ORDER_BY[sort]}`,
     )
-    .all()
-    .map(toTask);
+    .all();
+
+  // One timestamp for the whole list, so every row is judged against the same
+  // instant. Passing toTask straight to map would hand it the array index.
+  const now = new Date();
+  return rows.map((row) => toTask(row, now));
 }
 
 export function getTask(id: number): Task | null {

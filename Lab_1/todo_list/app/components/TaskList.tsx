@@ -68,10 +68,23 @@ export function TaskList({
   return (
     <ul className="flex flex-col gap-3">
       {tasks.map((task) => (
-        <li key={task.id} className="rounded border border-gray-300 p-4">
+        <li
+          key={task.id}
+          className={`rounded border p-4 ${
+            task.overdue ? "border-red-400 bg-red-50" : "border-gray-300"
+          }`}
+        >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="font-medium">{task.title}</h3>
+              <h3 className="font-medium">
+                {task.title}
+                {/* Overdue is a flag on the task, never one of the statuses. */}
+                {task.overdue && (
+                  <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
+                    Overdue
+                  </span>
+                )}
+              </h3>
 
               {task.description && (
                 <p className="mt-1 text-sm text-gray-600">{task.description}</p>
