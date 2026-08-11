@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createTask, STATUSES, type Status, type TaskInput } from "@/lib/tasks";
 
 function parseStatus(value: FormDataEntryValue | null): Status {
@@ -24,4 +25,7 @@ export async function createTaskAction(formData: FormData) {
   if (!input.title.trim()) return;
 
   createTask(input);
+  // Without this the client router keeps its cached copy of the page and the
+  // new task only shows up after a manual reload.
+  revalidatePath("/");
 }
