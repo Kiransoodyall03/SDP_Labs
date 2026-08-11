@@ -41,11 +41,20 @@ export type SortKey = "due_date" | "topic" | "status";
 
 // Interpolated into the query, so this map is the only source of sort clauses —
 // the caller's string never reaches the SQL. Every clause ends with id so the
-// order is stable when the leading column ties.
+// order is stable when the leading column ties, and undated tasks always sort
+// last rather than first (SQLite puts NULL first on an ASC sort).
+const DUE_DATE_ASC = "due_date IS NULL, due_date ASC";
+
 const ORDER_BY: Record<SortKey, string> = {
-  due_date: "due_date IS NULL, due_date ASC, id ASC",
-  topic: "topic COLLATE NOCASE ASC, due_date ASC, id ASC",
-  status: "status ASC, due_date ASC, id ASC",
+  due_date: `${DUE_DATE_ASC}, id ASC`,
+  topic: `topic COLLATE NOCASE ASC, ${DUE_DATE_ASC}, id ASC`,
+  // Workflow order, not alphabetical: sorting the stored values would put
+  // Complete at the top and Todo at the bottom.
+  status: `CASE status
+             WHEN 'todo' THEN 0
+             WHEN 'in_progress' THEN 1
+             ELSE 2
+           END ASC, ${DUE_DATE_ASC}, id ASC`,
 };
 
 /**

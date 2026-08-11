@@ -1,11 +1,23 @@
 import Link from "next/link";
-import { listTasks } from "@/lib/tasks";
+import { listTasks, type SortKey } from "@/lib/tasks";
 import { createTaskAction } from "./actions";
 import { TaskForm } from "./components/TaskForm";
-import { TaskList } from "./components/TaskList";
+import { SortBar, TaskList } from "./components/TaskList";
 
-export default function Home() {
-  const tasks = listTasks();
+const VALID_SORTS: SortKey[] = ["due_date", "topic", "status"];
+
+/** Anything unrecognised in ?sort= falls back to the default. */
+function parseSort(value: string | undefined): SortKey {
+  return VALID_SORTS.includes(value as SortKey) ? (value as SortKey) : "due_date";
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
+  const sort = parseSort((await searchParams).sort);
+  const tasks = listTasks({ sort, archived: false });
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -21,7 +33,8 @@ export default function Home() {
         <TaskForm action={createTaskAction} />
       </section>
 
-      <section>
+      <section className="flex flex-col gap-3">
+        <SortBar sort={sort} basePath="/" />
         <TaskList tasks={tasks} />
       </section>
     </main>

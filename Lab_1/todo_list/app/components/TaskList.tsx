@@ -1,6 +1,44 @@
 import Link from "next/link";
-import { STATUS_LABELS, type Task } from "@/lib/tasks";
+import { STATUS_LABELS, type SortKey, type Task } from "@/lib/tasks";
 import { archiveTaskAction, unarchiveTaskAction } from "@/app/actions";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "due_date", label: "Due date" },
+  { key: "topic", label: "Topic" },
+  { key: "status", label: "Status" },
+];
+
+/**
+ * Sorting lives in the URL rather than component state, so the choice survives
+ * a reload and the server can do the ordering in SQL.
+ */
+export function SortBar({
+  sort,
+  basePath,
+}: {
+  sort: SortKey;
+  basePath: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-gray-500">Sort by</span>
+      {SORTS.map(({ key, label }) => (
+        <Link
+          key={key}
+          href={`${basePath}?sort=${key}`}
+          aria-current={sort === key ? "true" : undefined}
+          className={`rounded border px-2 py-1 ${
+            sort === key
+              ? "border-gray-900 bg-gray-900 text-white"
+              : "border-gray-300 hover:bg-gray-100"
+          }`}
+        >
+          {label}
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 function formatDate(value: string | null) {
   if (!value) return "No due date";
