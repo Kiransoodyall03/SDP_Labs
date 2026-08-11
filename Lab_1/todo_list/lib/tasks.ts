@@ -66,3 +66,24 @@ export function createTask(input: TaskInput): Task {
 
   return getTask(Number(info.lastInsertRowid))!;
 }
+
+/** Overwrites every editable field, so the caller must send the full task. */
+export function updateTask(id: number, input: TaskInput): Task | null {
+  getDb()
+    .prepare(
+      `UPDATE tasks
+          SET title = ?, description = ?, due_date = ?, topic = ?,
+              status = ?, updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .run(
+      input.title.trim(),
+      input.description?.trim() ?? "",
+      input.dueDate || null,
+      input.topic?.trim() || "General",
+      input.status ?? "todo",
+      id,
+    );
+
+  return getTask(id);
+}
