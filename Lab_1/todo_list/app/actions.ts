@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   createTask,
   updateTask,
@@ -43,4 +44,7 @@ export async function updateTaskAction(formData: FormData) {
 
   updateTask(id, input);
   revalidatePath("/");
+  // The edit page is a dead end once the task is saved: send the user back to
+  // the list so they can see the change.
+  redirect("/");
 }
