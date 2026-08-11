@@ -37,6 +37,14 @@ function toTask(row: unknown): Task {
   return { ...(row as Task) };
 }
 
+/** Every task, newest first. */
+export function listTasks(): Task[] {
+  return getDb()
+    .prepare("SELECT * FROM tasks ORDER BY created_at DESC, id DESC")
+    .all()
+    .map(toTask);
+}
+
 export function getTask(id: number): Task | null {
   const row = getDb().prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   return row ? toTask(row) : null;
