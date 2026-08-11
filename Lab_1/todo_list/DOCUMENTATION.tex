@@ -1,0 +1,339 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+% Vector Type1 fonts. Without this, T1 falls back to bitmap PK fonts, which look
+% blurry on screen and take an age to generate on a first build.
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{ragged2e}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  backgroundcolor=\color{gray!5},
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+}
+
+% \RaggedRight rather than \raggedright: the latter's infinitely shrinkable
+% \rightskip upsets longtable when a table splits across a page.
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+
+\title{Todo List --- Documentation}
+\author{Kiran Soodyall \\ COMS3011A Lab 1: Starting a Project}
+\date{August 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{center}
+\small Built with \texttt{pdflatex DOCUMENTATION.tex}, run twice so the table of
+contents resolves. The same content is in \texttt{README.md}.
+\end{center}
+
+\begin{abstract}
+\noindent A local-first todo application: Next.js for the interface, SQLite for
+storage. It runs on the user's own machine, serves one user, has no accounts and
+never talks to a server the user does not control. Tasks carry a title,
+description, due date and topic, move through three fixed statuses, and are
+archived rather than deleted. This document covers the third-party code, the
+database design, how to run it, and how AI was used in building it.
+\end{abstract}
+
+\tableofcontents
+
+\section{Running It}
+
+\textbf{Node 24 or newer} (developed on v24.14.0, npm 11.9.0). The version
+matters: storage uses Node's built-in \texttt{node:sqlite} module, which is only
+available without a command-line flag from Node 23.4 onwards. Check with
+\texttt{node -{}-version}.
+
+From a clean clone:
+
+\begin{lstlisting}[language=bash]
+cd Lab_1/todo_list
+npm install
+npm run dev
+\end{lstlisting}
+
+Then open \url{http://localhost:3000}. The database file \texttt{todo.db} is
+created in \path{Lab_1/todo_list} the first time a page loads, and the schema
+is applied automatically --- there is no separate migration step to run. It is
+listed in \texttt{.gitignore}, so the user's tasks stay theirs.
+
+Stop the server with \texttt{Ctrl+C}. Tasks are on disk, so starting it again
+brings them all back.
+
+To run the tests:
+
+\begin{lstlisting}[language=bash]
+npm test
+\end{lstlisting}
+
+To run a production build instead of the dev server:
+
+\begin{lstlisting}[language=bash]
+npm run build
+npm start
+\end{lstlisting}
+
+Both dev and production print an \texttt{ExperimentalWarning} about SQLite on
+startup. That is Node flagging its own built-in module and is safe to ignore.
+
+\subsection{If the application is on an exFAT drive}
+
+\texttt{next dev} and \texttt{next build} both need to create junction points
+inside \texttt{.next}, which exFAT does not support --- the result is
+\texttt{failed to create junction point} or \texttt{EISDIR: illegal operation on
+a directory, readlink}. Move the clone to an NTFS volume. Nothing in the
+application can work around it.
+
+\section{Third-Party Code}
+
+Nothing here was installed for storage: SQLite comes from Node's built-in
+\texttt{node:sqlite} module, so there is no native \texttt{better-sqlite3} build
+step, no prebuilt binary to download, and nothing to break on a different machine
+or a non-NTFS drive. The cost is the Node 24 requirement above.
+
+\begin{longtable}{L{4cm} L{10.5cm}}
+\toprule
+\textbf{Package} & \textbf{Why} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Package} & \textbf{Why} \\
+\midrule
+\endhead
+\texttt{next} & The framework the brief asks for. Server Components let pages
+read SQLite directly, and Server Actions handle form posts, so there is no API
+layer to write or keep in step with the database. \\
+\addlinespace
+\texttt{react}, \texttt{react-dom} & Next's rendering layer; not an independent
+choice. \\
+\addlinespace
+\texttt{typescript}, \texttt{@types/node}, \texttt{@types/react},
+\texttt{@types/react-dom} & Types catch the mistakes that matter here --- a
+status string that is not one of the three, a due date that might be null.
+\texttt{@types/node} is pinned to v24 for the \texttt{node:sqlite} types. \\
+\addlinespace
+\texttt{tailwindcss}, \path{@tailwindcss/postcss}, \texttt{postcss},
+\texttt{autoprefixer} & Styling in the markup, so a single-page interface needs
+no separate stylesheet to keep in sync. Installed by \texttt{create-next-app};
+kept rather than chosen. \\
+\addlinespace
+\texttt{eslint}, \texttt{eslint-config-next} & Catches Next-specific mistakes,
+such as a Client Component importing server-only code. Also from
+\texttt{create-next-app}. \\
+\addlinespace
+\texttt{vitest} & The test runner. It reads the project's TypeScript and
+\texttt{@/*} path aliases with no extra configuration, and \texttt{vitest run}
+exits when it is done rather than sitting in watch mode. \\
+\bottomrule
+\end{longtable}
+
+\section{Database Design}
+
+One table, in \texttt{lib/schema.sql}, applied on first connection by
+\texttt{lib/db.ts}.
+
+\subsection{The \texttt{tasks} table}
+
+\begin{longtable}{L{2.5cm} L{2.05cm} L{4.35cm} L{5cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} & \textbf{Holds} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} & \textbf{Holds} \\
+\midrule
+\endhead
+\texttt{id} & INTEGER & primary key, autoincrement & Stable identifier, and the
+\path{<id>} in a task's edit route. \\
+\addlinespace
+\texttt{title} & TEXT & not null, \texttt{length(trim(title)) $>$ 0} & The task.
+A whitespace-only title is rejected by the database, not just the form. \\
+\addlinespace
+\texttt{description} & TEXT & not null, default \texttt{''} & Optional detail,
+stored as an empty string rather than null so reads need no null check. \\
+\addlinespace
+\texttt{due\_date} & TEXT & nullable & \texttt{YYYY-MM-DD}. Null means no due
+date, which is why the column is nullable. \\
+\addlinespace
+\texttt{topic} & TEXT & not null, default \texttt{'General'} & Free text, entered
+per task. \\
+\addlinespace
+\texttt{status} & TEXT & not null, default \texttt{'todo'},
+\texttt{CHECK (status IN} \newline \texttt{('todo', 'in\_progress',} \newline
+\texttt{'complete'))} & One of the three fixed statuses. \\
+\addlinespace
+\texttt{archived\_at} & TEXT & nullable & Null while active; a timestamp once
+archived. \\
+\addlinespace
+\texttt{created\_at} & TEXT & not null, default \texttt{datetime('now')} & Set on
+insert, never updated. \\
+\addlinespace
+\texttt{updated\_at} & TEXT & not null, default \texttt{datetime('now')} & Bumped
+by every edit, archive and restore. \\
+\bottomrule
+\end{longtable}
+
+Two indexes: \texttt{idx\_tasks\_archived} on \texttt{archived\_at}, because
+every list query filters on it, and \texttt{idx\_tasks\_due\_date} on
+\texttt{due\_date}, the default sort.
+
+\subsection{Relationships}
+
+There are none, deliberately. Topic and status are both single values belonging
+to one task, so each is a column on \texttt{tasks} rather than a row in its own
+table joined back:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Status} is fixed at three values that the brief says are not
+    user-customisable. A \texttt{statuses} table would let the database hold a
+    fourth one; a \texttt{CHECK} constraint cannot. The constraint is the
+    stricter model, and it rejects \texttt{'overdue'} as a status on both insert
+    and update.
+  \item \textbf{Topic} is a label the user types per task, with no attributes of
+    its own. A \texttt{topics} table would add a foreign key and a join for no
+    gain, and would raise a question the brief never asks --- what happens to a
+    topic when its last task is archived. Grouping by topic is a sort on the
+    column.
+\end{itemize}
+
+\subsection{Two things are deliberately not stored}
+
+\textbf{Archive is a flag, not a move.} \texttt{archiveTask} sets
+\texttt{archived\_at} and nothing else; the row does not move and no row is ever
+deleted, which is what keeps an archived task viewable. The active list is
+\texttt{WHERE archived\_at IS NULL} and the archive is
+\texttt{WHERE archived\_at IS NOT NULL}. There is no \texttt{deleteTask} function
+anywhere in the codebase, and restoring is the same operation in reverse.
+
+\textbf{Overdue is derived, not a column.} A stored flag would be wrong the
+moment midnight passed, and a stored status would make overdue a fourth status,
+which the brief forbids. \texttt{isOverdue} in \texttt{lib/tasks.ts} works it out
+at read time: a task is overdue when its due date is before today and it is
+neither complete nor archived. Due dates are whole days, so the comparison is
+between \texttt{YYYY-MM-DD} strings and today's local date --- reading the due
+date into a \texttt{Date} treats it as UTC midnight, which flags a task due
+\emph{today} as overdue from 02:00 local time onwards.
+
+\section{How It Fits Together}
+
+\begin{lstlisting}
+app/layout.tsx            shell, fonts, and the jump scare timer
+app/page.tsx              active list, sort controls, new task form
+app/archive/page.tsx      archived tasks, with restore
+app/tasks/[id]/edit/      edit form for one task
+app/actions.ts            server actions: create, update, archive, restore
+app/components/           TaskForm.tsx, TaskList.tsx (cards + SortBar),
+                          JumpScare.tsx
+lib/tasks.ts              queries, sort clauses, the overdue rule
+lib/db.ts                 opens the database, applies the schema
+lib/schema.sql            the schema above
+tests/tasks.test.ts       the suite npm test runs
+\end{lstlisting}
+
+Pages read the database directly through \texttt{lib/tasks.ts} and forms post to
+server actions, so there are no API routes and no client-side data fetching.
+Sorting is held in the URL (\texttt{/?sort=topic}) rather than component state,
+which keeps the ordering in SQL and lets a sorted list survive a reload.
+
+\section{Testing}
+
+\texttt{npm test} runs \texttt{tests/tasks.test.ts} under Vitest: twelve tests
+covering creation, editing, archiving and restoring, the overdue rule, and all
+three sort orders. They never touch the developer's own database ---
+\texttt{TODO\_DB\_PATH} is pointed at a \texttt{mkdtemp} file before the data
+layer is imported, tables are cleared before each test, and the temporary
+directory is removed at the end.
+
+The overdue cases run against a fixed clock (11 August 2026, 22:30) rather than
+the current time, so they do not depend on when the suite is run. Two of the
+tests were checked by deliberately reintroducing the bugs they were written for:
+restoring the \texttt{new Date(row.due\_date) $<$ now} comparison fails the
+``due today is not overdue'' case, and restoring an alphabetical
+\texttt{ORDER BY status} fails the workflow-order case.
+
+\section{Jump Scares}
+
+Once every 60 seconds the application covers the screen with one of five gifs,
+picked at random, plays \texttt{public/scare/scare\_audio.mp3} over it, and
+clears after 2.5 seconds. It is implemented in
+\texttt{app/components/JumpScare.tsx} and mounted in \texttt{app/layout.tsx}, so
+it runs on every page.
+
+It has nothing to do with the todo list and nothing to do with the brief. The
+overlay is \texttt{aria-hidden} and \texttt{pointer-events-none}, so it does not
+interrupt a form or reach a screen reader, and the gif is chosen when the timer
+fires rather than during render, so server and client cannot disagree on
+hydration. Browsers block audio until the page has been clicked, so the first
+scare of a session may be silent.
+
+\textbf{This feature was written in full by Claude Opus 5 (Claude Code).} No part
+of it was written by hand. The author's prompt, verbatim:
+
+\begin{quote}
+lastly every minute you will create a jump scare using the five gifs i added and
+i included the audio. Add this to the documentation that you as the ai fully
+implemented it as well. Add the prompt i used as well
+\end{quote}
+
+The five gifs and the audio file were supplied by the author; the AI moved them
+from \texttt{scare\_files/} into \texttt{public/scare/} so that Next.js could
+serve them, wrote the component, mounted it in the layout, and verified that all
+six assets return 200 and that the timer, \texttt{new Audio}, the random pick and
+both intervals appear in the client bundle. The 60-second firing itself was not
+verified in a browser.
+
+\section{AI Usage}
+
+The application was built with Claude Opus 5 (Claude Code) under constraints set
+by the author up front: build the lab incrementally so the commit history reads
+as human work, split each feature into a backend commit and a frontend commit,
+plant minor deliberate faults to be fixed in later commits, and make no commits
+without the author's say-so. Full transcripts accompany this submission.
+
+Two occasions where the author's or the tool's output was rejected and redirected
+are worth recording, because both changed the shipped code:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{The author rejected the AI's first working slice as too large.}
+    The AI had written the schema, data layer, server actions, all pages, the
+    test suite and the documentation in a single pass. The author stopped it
+    (``you are doing too much work for 1 commit''), and the work was pulled back
+    out of the tree and re-added feature by feature, two commits per feature.
+  \item \textbf{The AI's first storage choice did not work and was replaced.}
+    \texttt{better-sqlite3} was installed first, as the conventional choice. It
+    crashed both \texttt{next dev} and \texttt{next build}: the project lives on
+    an exFAT volume, which has no reparse points, so Turbopack could not create
+    the junction it needs to load a native module. The fallback to webpack failed
+    separately. The dependency was removed in favour of Node's built-in
+    \texttt{node:sqlite}, which needs no native build, and the author chose that
+    route over relocating the repository.
+\end{itemize}
+
+Deliberate faults were planted and then fixed in later commits, each fix its own
+commit: a missing \texttt{revalidatePath} that left a newly created task
+invisible until reload; an edit action with no redirect, leaving the user on a
+dead-end form; an alphabetical status sort that put completed work at the top;
+and the UTC due-date comparison described in section 3.3, which flagged tasks due
+today as overdue. Each was demonstrated against a running server before being
+fixed.
+
+\end{document}

@@ -43,3 +43,10 @@ next-env.d.ts
 # local database
 todo.db
 todo.db-*
+
+# latex build products (DOCUMENTATION.pdf is committed, the rest are not)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
