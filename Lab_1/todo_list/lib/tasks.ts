@@ -37,18 +37,32 @@ function toTask(row: unknown): Task {
   return { ...(row as Task) };
 }
 
+export type SortKey = "due_date" | "topic" | "status";
+
+// Interpolated into the query, so this map is the only source of sort clauses —
+// the caller's string never reaches the SQL. Every clause ends with id so the
+// order is stable when the leading column ties.
+const ORDER_BY: Record<SortKey, string> = {
+  due_date: "due_date IS NULL, due_date ASC, id ASC",
+  topic: "topic COLLATE NOCASE ASC, due_date ASC, id ASC",
+  status: "status ASC, due_date ASC, id ASC",
+};
+
 /**
- * The active tasks, newest first. Pass `archived: true` for the archive view —
- * archived tasks are still stored, just kept out of the active list.
+ * The active tasks. Pass `archived: true` for the archive view — archived tasks
+ * are still stored, just kept out of the active list.
  */
-export function listTasks(opts: { archived?: boolean } = {}): Task[] {
+export function listTasks(
+  opts: { sort?: SortKey; archived?: boolean } = {},
+): Task[] {
+  const sort = opts.sort ?? "due_date";
   const archived = opts.archived ?? false;
 
   return getDb()
     .prepare(
       `SELECT * FROM tasks
         WHERE archived_at IS ${archived ? "NOT NULL" : "NULL"}
-        ORDER BY created_at DESC, id DESC`,
+        ORDER BY ${ORDER_BY[sort]}`,
     )
     .all()
     .map(toTask);
