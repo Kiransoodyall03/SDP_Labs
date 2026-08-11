@@ -37,10 +37,19 @@ function toTask(row: unknown): Task {
   return { ...(row as Task) };
 }
 
-/** Every task, newest first. */
-export function listTasks(): Task[] {
+/**
+ * The active tasks, newest first. Pass `archived: true` for the archive view —
+ * archived tasks are still stored, just kept out of the active list.
+ */
+export function listTasks(opts: { archived?: boolean } = {}): Task[] {
+  const archived = opts.archived ?? false;
+
   return getDb()
-    .prepare("SELECT * FROM tasks ORDER BY created_at DESC, id DESC")
+    .prepare(
+      `SELECT * FROM tasks
+        WHERE archived_at IS ${archived ? "NOT NULL" : "NULL"}
+        ORDER BY created_at DESC, id DESC`,
+    )
     .all()
     .map(toTask);
 }
@@ -84,6 +93,33 @@ export function updateTask(id: number, input: TaskInput): Task | null {
       input.status ?? "todo",
       id,
     );
+
+  return getTask(id);
+}
+
+/**
+ * Archiving is a timestamp on the row, not a delete: the task drops out of the
+ * active list but stays readable, which is why there is no deleteTask.
+ */
+export function archiveTask(id: number): Task | null {
+  getDb()
+    .prepare(
+      `UPDATE tasks SET archived_at = datetime('now'),
+                        updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .run(id);
+
+  return getTask(id);
+}
+
+export function unarchiveTask(id: number): Task | null {
+  getDb()
+    .prepare(
+      `UPDATE tasks SET archived_at = NULL, updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .run(id);
 
   return getTask(id);
 }

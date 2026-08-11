@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  archiveTask,
   createTask,
+  unarchiveTask,
   updateTask,
   STATUSES,
   type Status,
@@ -47,4 +49,16 @@ export async function updateTaskAction(formData: FormData) {
   // The edit page is a dead end once the task is saved: send the user back to
   // the list so they can see the change.
   redirect("/");
+}
+
+export async function archiveTaskAction(formData: FormData) {
+  archiveTask(Number(formData.get("id")));
+  revalidatePath("/");
+  revalidatePath("/archive");
+}
+
+export async function unarchiveTaskAction(formData: FormData) {
+  unarchiveTask(Number(formData.get("id")));
+  revalidatePath("/");
+  revalidatePath("/archive");
 }
